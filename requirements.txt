@@ -1,0 +1,9 @@
+jupyterlab
+kaggle
+opencv-python
+pandas
+pydicom
+scipy
+scikit-learn
+torch
+timm
