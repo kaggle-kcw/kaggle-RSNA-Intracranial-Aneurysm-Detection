@@ -1,0 +1,12 @@
+2025/09/16 07:43:55 INFO mlflow.store.db.utils: Creating initial MLflow database tables...
+2025/09/16 07:43:55 INFO mlflow.store.db.utils: Updating database tables
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+2025/09/16 07:43:55 INFO mlflow.store.db.utils: Creating initial MLflow database tables...
+2025/09/16 07:43:55 INFO mlflow.store.db.utils: Updating database tables
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+ERROR:    [Errno 98] Address already in use
+Running the mlflow server failed. Please see the logs above for details.

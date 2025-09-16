@@ -2,8 +2,11 @@ jupyterlab
 kaggle
 opencv-python
 pandas
+polars
 pydicom
 scipy
 scikit-learn
 torch
 timm
+mlflow
+psycopg2-binary

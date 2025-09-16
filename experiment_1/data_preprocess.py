@@ -8,6 +8,7 @@ from scipy import ndimage
 
 class DICOMPreprocessorKaggle:
     def __init__(self, target_shape: Tuple[int, int, int] = (32, 384, 384)):
+        self.target_shape = target_shape
         self.target_depth, self.target_height, self.target_width = target_shape
 
     def load_dicom_series(self, series_path: str) -> Tuple[List[pydicom.Dataset], str]:
@@ -171,6 +172,11 @@ class DICOMPreprocessorKaggle:
 
     def process_series(self, series_path: str) -> np.ndarray:
         datasets, series_name = self.load_dicom_series(series_path)
+
+        # Handle cases where no DICOM files are found in the series directory
+        if not datasets:
+            # Return a zero-filled volume of the target shape
+            return np.zeros(self.target_shape, dtype=np.uint8)
 
         # Check first DICOM to determine 3D/2D
         first_ds = datasets[0]
