@@ -1,3 +1,18 @@
+import pandas as pd
+import numpy as np
+from pathlib import Path
+from typing import Tuple, Optional
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+import timm
+from torch.utils.data import Dataset, DataLoader, Subset
+from typing import Callable, Optional, Tuple, Sequence, Dict, Any
+from sklearn.metrics import roc_auc_score
+from tqdm.auto import tqdm
+from sklearn.model_selection import StratifiedKFold
+from data_preprocess import process_dicom_series_safe
+
 class RSNAAneurysmDataset(Dataset):
     def __init__(
         self,
@@ -25,8 +40,12 @@ class RSNAAneurysmDataset(Dataset):
         vol_t = vol_t.float().div_(255.0) 
 
         # Labels
-        label_t = row[self.label_cols].values.astype(np.float32)
-        label_t = torch.from_numpy(label_t)
+        if self.label_cols and all(c in row for c in self.label_cols):
+            label_t = row[self.label_cols].values.astype(np.float32)
+            label_t = torch.from_numpy(label_t)
+        else:
+            # Return a dummy tensor for labels if they don't exist (inference case)
+            label_t = torch.empty(0)
 
         # Meta
         meta = {
