@@ -14,7 +14,7 @@ from data_preprocess import process_dicom_series_safe
 from dataset import RSNAAneurysmDataset, collate
 from model import EffnetAneurysmClassifier
 from metric import AverageMeter, auc_per_label, rsna_final_score
-from utils import set_seed, LABEL_COLS
+from utils import set_seed, LABEL_COLS, find_unused_series_instance_uid_list
 
 input_dir = "/home/khor/kaggle_kcw/kaggle-RSNA-Intracranial-Aneurysm-Detection/input/"
 train_df = pd.read_csv(f"{input_dir}/train.csv") 
@@ -23,6 +23,9 @@ train_localizers_df = pd.read_csv(f"{input_dir}/train_localizers.csv")
 INPUT_DIR = "/home/khor/kaggle_kcw/kaggle-RSNA-Intracranial-Aneurysm-Detection/input"
 train_csv = os.path.join(INPUT_DIR, "train.csv")
 train_df = pd.read_csv(train_csv)
+
+unused_series_instance_uid_list = find_unused_series_instance_uid_list(train_df, train_localizers_df)
+train_df = train_df[~train_df["SeriesInstanceUID"].isin(unused_series_instance_uid_list)].reset_index(drop=True)    
 
 TARGET_SHAPE = (32, 384, 384)
 
@@ -40,18 +43,15 @@ all_series_uids = train_df['SeriesInstanceUID'].unique()
 processed_uids = {f.split('.')[0] for f in os.listdir(PREPROCESSED_DIR)}
 uids_to_process = [uid for uid in all_series_uids if uid not in processed_uids]
 
-if not uids_to_process:
-    print("All series have already been pre-processed.")
-else:
-    print(f"Processing {len(uids_to_process)} new series...")
-    for series_uid in tqdm(uids_to_process, desc="Preprocessing DICOMs"):
-        dicom_series_path = os.path.join(INPUT_DIR, "series", series_uid)
-        
-        # Process the DICOM series to a NumPy array
-        volume = process_dicom_series_safe(dicom_series_path, TARGET_SHAPE)
-        
-        # Save the NumPy array
-        np.save(os.path.join(PREPROCESSED_DIR, f"{series_uid}.npy"), volume)
+print(f"Processing {len(uids_to_process)} new series...")
+for series_uid in tqdm(uids_to_process, desc="Preprocessing DICOMs"):
+    dicom_series_path = os.path.join(INPUT_DIR, "series", series_uid)
+    
+    # Process the DICOM series to a NumPy array
+    volume = process_dicom_series_safe(dicom_series_path, TARGET_SHAPE)
+    
+    # Save the NumPy array
+    np.save(os.path.join(PREPROCESSED_DIR, f"{series_uid}.npy"), volume)
 
 train_ds = RSNAAneurysmDataset(
     df=train_df,

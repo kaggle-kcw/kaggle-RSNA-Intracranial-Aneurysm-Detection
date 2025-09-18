@@ -1,9 +1,0 @@
-series_path = "/home/khor/kaggle_kcw/kaggle-RSNA-Intracranial-Aneurysm-Detection/input/series/1.2.826.0.1.3680043.8.498.10004044428023505108375152878107656647" 
-volume = process_dicom_series_safe(series_path, (32, 384, 384))
-
-for series_name in os.listdir(f"{input_dir}/series/"):
-    series_path = os.path.join(f"{input_dir}/series/", series_name)
-    volume = process_dicom_series_safe(series_path, (32, 384, 384))
-    print(f"Processed series: {series_name}, volume shape: {volume.shape}")
-    del volume
-    gc.collect()
