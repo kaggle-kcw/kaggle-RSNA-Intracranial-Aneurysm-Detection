@@ -3,3 +3,4 @@ input
 *.pyc
 train_volumes/
 nohup*
+checkpoints
