@@ -6,6 +6,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import timm
+from torch.utils.tensorboard import SummaryWriter
 from torch.utils.data import DataLoader, Subset
 from tqdm.auto import tqdm
 from sklearn.model_selection import StratifiedKFold
@@ -93,7 +94,7 @@ criterion = nn.BCEWithLogitsLoss()
 optimizer = torch.optim.AdamW(model.parameters(), lr=2e-4, weight_decay=1e-4)
 
 # cosine decay with warmup
-total_epochs = 10
+total_epochs = 200
 warmup_epochs = 1
 def lr_lambda(epoch):
     if epoch < warmup_epochs:
@@ -104,10 +105,13 @@ scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda)
 
 scaler = torch.amp.GradScaler()
 
+# --- TensorBoard Setup ---
+writer = SummaryWriter('runs/aneurysm_experiment_1')
+
 # ---------- training / validation loop
 save_dir = "./checkpoints"; os.makedirs(save_dir, exist_ok=True)
 best_score = -1.0
-patience, bad_epochs = 3, 0
+patience, bad_epochs = 100, 0
 grad_clip_norm = 2.0
 accum_steps = 1  # set >1 if you want gradient accumulation
 
@@ -141,6 +145,9 @@ for epoch in range(total_epochs):
 
     scheduler.step()
 
+    # Log training metrics to TensorBoard
+    writer.add_scalar('Loss/train', loss_meter.avg, epoch)
+    writer.add_scalar('LearningRate', optimizer.param_groups[0]['lr'], epoch)
     # ---- validate
     model.eval()
     val_loss = AverageMeter()
@@ -164,6 +171,12 @@ for epoch in range(total_epochs):
     # RSNA uses 'Aneurysm Present' as the special label — assume it's LABEL_COLS[0]
     final = rsna_final_score(per_label_auc, ap_index=0)
 
+    # Log validation metrics to TensorBoard
+    writer.add_scalar('Loss/validation', val_loss.avg, epoch)
+    writer.add_scalar('Score/final_score', final if not np.isnan(final) else 0, epoch)
+    for i, auc in enumerate(per_label_auc):
+        if not np.isnan(auc):
+            writer.add_scalar(f'AUC/{LABEL_COLS[i]}', auc, epoch)
     # logging
     readable_aucs = [None if np.isnan(x) else round(float(x), 4) for x in per_label_auc]
     print(f"\nEpoch {epoch+1}: train_loss={loss_meter.avg:.4f}  "
@@ -188,3 +201,6 @@ for epoch in range(total_epochs):
         if bad_epochs >= patience:
             print("⏹️  Early stopping.")
             break
+
+# Close the TensorBoard writer
+writer.close()
