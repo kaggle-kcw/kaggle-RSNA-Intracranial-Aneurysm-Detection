@@ -45,7 +45,7 @@ if not uids_to_process:
 else:
     print(f"Processing {len(uids_to_process)} new series...")
     for series_uid in tqdm(uids_to_process, desc="Preprocessing DICOMs"):
-        dicom_series_path = os.path.join(INPUT_DIR, "train_series", series_uid)
+        dicom_series_path = os.path.join(INPUT_DIR, "series", series_uid)
         
         # Process the DICOM series to a NumPy array
         volume = process_dicom_series_safe(dicom_series_path, TARGET_SHAPE)
@@ -55,7 +55,7 @@ else:
 
 train_ds = RSNAAneurysmDataset(
     df=train_df,
-    input_dir=PREPROCESSED_DIR, # Use the new directory with preprocessed volumes
+    input_dir=input_dir, # Use the new directory with preprocessed volumes
     target_shape=TARGET_SHAPE,
     label_cols=LABEL_COLS
 )
