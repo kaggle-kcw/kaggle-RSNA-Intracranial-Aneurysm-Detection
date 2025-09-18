@@ -14,6 +14,7 @@ import kaggle_evaluation.rsna_inference_server
 
 from data_preprocess import process_dicom_series_safe
 from model import EffnetAneurysmClassifier
+from utils import LABEL_COLS
 
 CHECKPOINT_PATH = "./checkpoints/best_by_final_score.pt" # Path to your trained model checkpoint
 
@@ -21,24 +22,6 @@ TARGET_SHAPE = (32, 384, 384)
 
 # --- Globals ---
 model_infer = None
-
-# These must match the labels used during training
-LABEL_COLS = [
-    'Left Infraclinoid Internal Carotid Artery',
-    'Right Infraclinoid Internal Carotid Artery',
-    'Left Supraclinoid Internal Carotid Artery',
-    'Right Supraclinoid Internal Carotid Artery',
-    'Left Middle Cerebral Artery',
-    'Right Middle Cerebral Artery',
-    'Anterior Communicating Artery',
-    'Left Anterior Cerebral Artery',
-    'Right Anterior Cerebral Artery',
-    'Left Posterior Communicating Artery',
-    'Right Posterior Communicating Artery',
-    'Basilar Tip',
-    'Other Posterior Circulation',
-    'Aneurysm Present'
-]
 NUM_LABELS = len(LABEL_COLS)
 
 def load_models():
