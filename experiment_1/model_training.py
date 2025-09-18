@@ -20,14 +20,43 @@ input_dir = "/home/khor/kaggle_kcw/kaggle-RSNA-Intracranial-Aneurysm-Detection/i
 train_df = pd.read_csv(f"{input_dir}/train.csv") 
 train_localizers_df = pd.read_csv(f"{input_dir}/train_localizers.csv")
 
-input_dir = "/home/khor/kaggle_kcw/kaggle-RSNA-Intracranial-Aneurysm-Detection/input"
-train_csv = os.path.join(input_dir, "train.csv")
+INPUT_DIR = "/home/khor/kaggle_kcw/kaggle-RSNA-Intracranial-Aneurysm-Detection/input"
+train_csv = os.path.join(INPUT_DIR, "train.csv")
 train_df = pd.read_csv(train_csv)
+
+TARGET_SHAPE = (32, 384, 384)
+
+# --- Pre-process DICOMs to NumPy arrays ---
+
+PREPROCESSED_DIR = os.path.join("/home/khor/kaggle_kcw/kaggle-RSNA-Intracranial-Aneurysm-Detection/experiment_1", "train_volumes")
+os.makedirs(PREPROCESSED_DIR, exist_ok=True)
+
+print("Starting DICOM pre-processing...")
+
+# Get a list of all series UIDs to process
+all_series_uids = train_df['SeriesInstanceUID'].unique()
+
+# Check which files have already been processed
+processed_uids = {f.split('.')[0] for f in os.listdir(PREPROCESSED_DIR)}
+uids_to_process = [uid for uid in all_series_uids if uid not in processed_uids]
+
+if not uids_to_process:
+    print("All series have already been pre-processed.")
+else:
+    print(f"Processing {len(uids_to_process)} new series...")
+    for series_uid in tqdm(uids_to_process, desc="Preprocessing DICOMs"):
+        dicom_series_path = os.path.join(INPUT_DIR, "train_series", series_uid)
+        
+        # Process the DICOM series to a NumPy array
+        volume = process_dicom_series_safe(dicom_series_path, TARGET_SHAPE)
+        
+        # Save the NumPy array
+        np.save(os.path.join(PREPROCESSED_DIR, f"{series_uid}.npy"), volume)
 
 train_ds = RSNAAneurysmDataset(
     df=train_df,
-    input_dir=input_dir,
-    target_shape=(32, 384, 384),
+    input_dir=PREPROCESSED_DIR, # Use the new directory with preprocessed volumes
+    target_shape=TARGET_SHAPE,
     label_cols=LABEL_COLS
 )
 
@@ -41,8 +70,8 @@ tr_idx, va_idx = next(iter(skf.split(train_df, y_for_split)))
 train_subset = Subset(train_ds, tr_idx)
 val_ds = RSNAAneurysmDataset(
     df=train_df.iloc[va_idx].reset_index(drop=True),
-    input_dir=input_dir,
-    target_shape=(32, 384, 384),
+    input_dir=PREPROCESSED_DIR, # Use the new directory with preprocessed volumes
+    target_shape=TARGET_SHAPE,
     label_cols=LABEL_COLS
 )
 
@@ -140,11 +169,6 @@ for epoch in range(total_epochs):
     print(f"\nEpoch {epoch+1}: train_loss={loss_meter.avg:.4f}  "
             f"val_loss={val_loss.avg:.4f}  final_score={None if np.isnan(final) else round(final,4)}")
     print("Per-label AUROC:", {LABEL_COLS[i]: readable_aucs[i] for i in range(len(readable_aucs))})
-
-    # Log per-label AUCs
-    for i, col in enumerate(LABEL_COLS):
-        if not np.isnan(per_label_auc[i]):
-            print(f"auc_{col.replace(' ', '_')}", per_label_auc[i], step=epoch)
 
     # checkpointing / early stop
     score_for_ckpt = -1 if np.isnan(final) else final

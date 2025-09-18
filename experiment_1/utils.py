@@ -15,7 +15,8 @@ LABEL_COLS = [
     'Left Posterior Communicating Artery',
     'Right Posterior Communicating Artery', 
     'Basilar Tip',
-    'Other Posterior Circulation'
+    'Other Posterior Circulation',
+    'Aneurysm Present'
 ]
 
 def set_seed(seed=42):

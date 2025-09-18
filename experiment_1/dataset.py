@@ -34,7 +34,8 @@ class RSNAAneurysmDataset(Dataset):
         series_instance_uid = str(row['SeriesInstanceUID'])
         series_path = self.input_dir / 'series' / series_instance_uid
 
-        # Load volume: (D,H,W) uint8
+        # Load preprocessed numpy volume: (D,H,W) uint8
+        #vol = np.load(f"{self.input_dir}/{series_instance_uid}.npy")
         vol = process_dicom_series_safe(str(series_path), self.target_shape)  # (D,H,W) uint8
         vol_t = torch.from_numpy(vol)  # uint8 [D,H,W]
         vol_t = vol_t.float().div_(255.0) 
