@@ -16,13 +16,15 @@ from data_preprocess import process_dicom_series_safe
 from model import EffnetAneurysmClassifier
 from utils import LABEL_COLS
 
+location_list = LABEL_COLS[:-1]  # All except 'Aneurysm Present'
+
 CHECKPOINT_PATH = "./checkpoints/best_by_final_score.pt" # Path to your trained model checkpoint
 
 TARGET_SHAPE = (32, 384, 384)
 
 # --- Globals ---
 model_infer = None
-NUM_LABELS = len(LABEL_COLS)
+NUM_LABELS = len(location_list)
 
 def load_models():
     """Loads the inference model onto the GPU."""
@@ -58,7 +60,7 @@ def _predict_inner(series_path: str) -> pl.DataFrame:
     # 3. Format output as a Polars DataFrame
     predictions = pl.DataFrame(
         data=probs_np,
-        schema=LABEL_COLS,
+        schema=location_list,
         orient='row'
     )
     return predictions
@@ -76,10 +78,10 @@ def predict(series_path: str) -> pl.DataFrame:
         print(f"Error during prediction for {os.path.basename(series_path)}: {e}")
         print("Using fallback predictions.")
         # Return a fallback dataframe with the correct schema
-        conservative_preds = [0.1] * len(LABEL_COLS)
+        conservative_preds = [0.1] * len(location_list)
         predictions = pl.DataFrame(
             data=[conservative_preds],
-            schema=LABEL_COLS,
+            schema=location_list,
             orient='row'
         )
         return predictions.head(0) # Return empty dataframe as per submission guidelines

@@ -3,20 +3,23 @@ import numpy as np
 import torch
 
 LABEL_COLS = [
-    'Left Infraclinoid Internal Carotid Artery',
-    'Right Infraclinoid Internal Carotid Artery',
-    'Left Supraclinoid Internal Carotid Artery',
-    'Right Supraclinoid Internal Carotid Artery',
-    'Left Middle Cerebral Artery', 
-    'Right Middle Cerebral Artery',
-    'Anterior Communicating Artery', 
-    'Left Anterior Cerebral Artery',
-    'Right Anterior Cerebral Artery',
-    'Left Posterior Communicating Artery',
-    'Right Posterior Communicating Artery', 
+    'Other Posterior Circulation',
     'Basilar Tip',
-    'Other Posterior Circulation'
+    'Right Posterior Communicating Artery',
+    'Left Posterior Communicating Artery',
+    'Right Infraclinoid Internal Carotid Artery',
+    'Left Infraclinoid Internal Carotid Artery',
+    'Right Supraclinoid Internal Carotid Artery',
+    'Left Supraclinoid Internal Carotid Artery',
+    'Right Middle Cerebral Artery',
+    'Left Middle Cerebral Artery',
+    'Right Anterior Cerebral Artery',
+    'Left Anterior Cerebral Artery',
+    'Anterior Communicating Artery',
+    'Aneurysm Present'
 ]
+
+location_list = LABEL_COLS[:-1]  # All except 'Aneurysm Present'
 
 def set_seed(seed=42):
     random.seed(seed); np.random.seed(seed); torch.manual_seed(seed); torch.cuda.manual_seed_all(seed)
@@ -26,7 +29,7 @@ def set_seed(seed=42):
 def find_unused_series_instance_uid_list(train_df, train_localizers_df):
     train_localizers_validate_df = train_df.melt(
         id_vars=['SeriesInstanceUID'],
-        value_vars=LABEL_COLS,
+        value_vars=location_list,
         var_name='location',
         value_name='label'
     )

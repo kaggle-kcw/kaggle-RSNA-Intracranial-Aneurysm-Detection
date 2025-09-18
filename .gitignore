@@ -4,3 +4,4 @@ input
 train_volumes/
 nohup*
 checkpoints
+runs
