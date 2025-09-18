@@ -40,7 +40,7 @@ print("Starting DICOM pre-processing...")
 all_series_uids = train_df['SeriesInstanceUID'].unique()
 
 # Check which files have already been processed
-processed_uids = {f.split('.')[0] for f in os.listdir(PREPROCESSED_DIR)}
+processed_uids = {f.split('.npy')[0] for f in os.listdir(PREPROCESSED_DIR)}
 uids_to_process = [uid for uid in all_series_uids if uid not in processed_uids]
 
 print(f"Processing {len(uids_to_process)} new series...")
@@ -55,7 +55,7 @@ for series_uid in tqdm(uids_to_process, desc="Preprocessing DICOMs"):
 
 train_ds = RSNAAneurysmDataset(
     df=train_df,
-    input_dir=input_dir, # Use the new directory with preprocessed volumes
+    input_dir=PREPROCESSED_DIR, # Use the new directory with preprocessed volumes
     target_shape=TARGET_SHAPE,
     label_cols=LABEL_COLS
 )
