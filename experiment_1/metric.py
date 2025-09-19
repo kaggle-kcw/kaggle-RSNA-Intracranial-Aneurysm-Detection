@@ -51,8 +51,16 @@ def rsna_final_score(aucs, ap_index=0, other_indices=None):
     return 0.5 * (float(ap) + float(others.mean()))
 
 class AverageMeter:
-    def __init__(self): self.reset()
-    def reset(self): self.sum = 0.0; self.n = 0
-    def update(self, val, k=1): self.sum += float(val) * k; self.n += k
+    def __init__(self): 
+        self.reset()
+
+    def reset(self): 
+        self.sum = 0.0
+        self.n = 0
+
+    def update(self, val, k=1): 
+        self.sum += float(val) * k
+        self.n += k
+        
     @property
     def avg(self): return self.sum / max(1, self.n)

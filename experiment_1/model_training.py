@@ -52,7 +52,7 @@ train_ds = RSNAAneurysmDataset(
 )
 
 NUM_LABELS = len(location_list)
-print(f"Number of labels: {NUM_LABELS}")
+print(f"Number of curr_labels: {NUM_LABELS}")
 
 y_for_split = train_df[location_list[0]].values
 skf = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
@@ -96,26 +96,26 @@ save_dir = "./checkpoints"; os.makedirs(save_dir, exist_ok=True)
 best_score = -1.0
 patience, bad_epochs = 100, 0
 grad_clip_norm = 2.0
-accum_steps = 1  # set >1 if you want gradient accumulation
+accum_steps = 1
 
 for epoch in range(total_epochs):
     # ---- train
     model.train()
-    loss_meter = AverageMeter()
-    pbar = tqdm(train_subset_loader, desc=f"Epoch {epoch+1}/{total_epochs} [train]")
+    train_loss_meter = AverageMeter()
+    train_pbar = tqdm(train_subset_loader, desc=f"Epoch {epoch+1}/{total_epochs} [train]")
     optimizer.zero_grad(set_to_none=True)
 
-    for step, (vols, labels, _) in enumerate(pbar):
-        vols = vols.cuda(non_blocking=True).float()
-        labels = labels.cuda(non_blocking=True).float()
+    for curr_step, (curr_vols, curr_labels, _) in enumerate(train_pbar):
+        curr_vols = curr_vols.cuda(non_blocking=True).float()
+        curr_labels = curr_labels.cuda(non_blocking=True).float()
 
         with torch.amp.autocast(device_type= "cuda", dtype=torch.float16):
-            logits = model(vols)
-            loss = criterion(logits, labels) / accum_steps
+            curr_logits = model(curr_vols)
+            curr_loss = criterion(curr_logits, curr_labels) / accum_steps
 
-        scaler.scale(loss).backward()
+        scaler.scale(curr_loss).backward()
 
-        if (step + 1) % accum_steps == 0:
+        if (curr_step + 1) % accum_steps == 0:
             if grad_clip_norm is not None:
                 scaler.unscale_(optimizer)
                 nn.utils.clip_grad_norm_(model.parameters(), grad_clip_norm)
@@ -123,54 +123,55 @@ for epoch in range(total_epochs):
             scaler.update()
             optimizer.zero_grad(set_to_none=True)
 
-        loss_meter.update(loss.item() * accum_steps, k=vols.size(0))
-        pbar.set_postfix(loss=f"{loss_meter.avg:.4f}", lr=f"{optimizer.param_groups[0]['lr']:.2e}")
+        train_loss_meter.update(curr_loss.item() * accum_steps, k=curr_vols.size(0))
+        train_pbar.set_postfix(curr_loss=f"{train_loss_meter.avg:.4f}", lr=f"{optimizer.param_groups[0]['lr']:.2e}")
 
     scheduler.step()
 
     # Log training metrics to TensorBoard
-    writer.add_scalar('Loss/train', loss_meter.avg, epoch)
+    writer.add_scalar('Loss/train', train_loss_meter.avg, epoch)
     writer.add_scalar('LearningRate', optimizer.param_groups[0]['lr'], epoch)
+
     # ---- validate
     model.eval()
-    val_loss = AverageMeter()
+    val_loss_meter = AverageMeter()
     all_probs, all_trues = [], []
     with torch.no_grad(), torch.amp.autocast(device_type= "cuda", dtype=torch.float16):
-        for vols, labels, _ in tqdm(val_subset_loader, desc=f"Epoch {epoch+1}/{total_epochs} [valid]"):
-            vols = vols.cuda(non_blocking=True).float()
-            labels = labels.cuda(non_blocking=True).float()
-            logits = model(vols)
-            loss = criterion(logits, labels)
-            val_loss.update(loss.item(), k=vols.size(0))
+        for curr_vols, curr_labels, _ in tqdm(val_subset_loader, desc=f"Epoch {epoch+1}/{total_epochs} [valid]"):
+            curr_vols = curr_vols.cuda(non_blocking=True).float()
+            curr_labels = curr_labels.cuda(non_blocking=True).float()
+            curr_logits = model(curr_vols)
+            curr_loss = criterion(curr_logits, curr_labels)
+            val_loss_meter.update(curr_loss.item(), k=curr_vols.size(0))
 
-            probs = torch.sigmoid(logits).float().cpu().numpy()
-            all_probs.append(probs)
-            all_trues.append(labels.cpu().numpy())
+            curr_probs = torch.sigmoid(curr_logits).float().cpu().numpy()
+            all_probs.append(curr_probs)
+            all_trues.append(curr_labels.cpu().numpy())
 
     y_prob = np.concatenate(all_probs, axis=0)
     y_true = np.concatenate(all_trues, axis=0)
 
     per_label_auc = auc_per_label(y_true, y_prob)
-    final = rsna_final_score(per_label_auc, ap_index=0)
+    final_score = rsna_final_score(per_label_auc, ap_index=0)
 
     # Log validation metrics to TensorBoard
-    writer.add_scalar('Loss/validation', val_loss.avg, epoch)
-    writer.add_scalar('Score/final_score', final if not np.isnan(final) else 0, epoch)
+    writer.add_scalar('Loss/validation', val_loss_meter.avg, epoch)
+    writer.add_scalar('Score/final_score', final_score if not np.isnan(final_score) else 0, epoch)
     for i, auc in enumerate(per_label_auc):
         if not np.isnan(auc):
             writer.add_scalar(f'AUC/{location_list[i]}', auc, epoch)
     # logging
     readable_aucs = [None if np.isnan(x) else round(float(x), 4) for x in per_label_auc]
-    print(f"\nEpoch {epoch+1}: train_loss={loss_meter.avg:.4f}  "
-            f"val_loss={val_loss.avg:.4f}  final_score={None if np.isnan(final) else round(final,4)}")
+    print(f"\nEpoch {epoch+1}: train_loss={train_loss_meter.avg:.4f}  "
+            f"val_loss_meter={val_loss_meter.avg:.4f}  final_score={None if np.isnan(final_score) else round(final_score,4)}")
     print("Per-label AUROC:", {location_list[i]: readable_aucs[i] for i in range(len(readable_aucs))})
 
     # checkpointing / early stop
-    score_for_ckpt = -1 if np.isnan(final) else final
+    score_for_ckpt = -1 if np.isnan(final_score) else final_score
     if score_for_ckpt > best_score:
         best_score = score_for_ckpt
         bad_epochs = 0
-        print(f"✅ New best final score: {best_score:.4f} (checkpoint saved).")
+        print(f"✅ New best final_score score: {best_score:.4f} (checkpoint saved).")
         # Save local checkpoint
         torch.save(
             {"epoch": epoch, "model": model.state_dict(), "optimizer": optimizer.state_dict(),
