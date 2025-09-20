@@ -52,7 +52,7 @@ train_ds = RSNAAneurysmDataset(
 )
 
 NUM_LABELS = len(location_list)
-print(f"Number of curr_labels: {NUM_LABELS}")
+print(f"Number of labels: {NUM_LABELS}")
 
 y_for_split_column = 'Aneurysm Present'
 y_for_split = train_df[y_for_split_column].values
@@ -74,6 +74,9 @@ model = EffnetAneurysmClassifier(
     return_logits=True
 ).cuda()
 
+# --- TensorBoard Setup ---
+writer = SummaryWriter('runs/aneurysm_experiment_1')
+
 criterion = nn.BCEWithLogitsLoss()
 optimizer = torch.optim.AdamW(model.parameters(), lr=2e-4, weight_decay=1e-4)
 
@@ -88,9 +91,6 @@ def lr_lambda(epoch):
 scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda)
 
 scaler = torch.amp.GradScaler()
-
-# --- TensorBoard Setup ---
-writer = SummaryWriter('runs/aneurysm_experiment_1')
 
 # ---------- training / validation loop
 save_dir = "./checkpoints"; os.makedirs(save_dir, exist_ok=True)
