@@ -95,9 +95,10 @@ writer = SummaryWriter('runs/aneurysm_experiment_1')
 # ---------- training / validation loop
 save_dir = "./checkpoints"; os.makedirs(save_dir, exist_ok=True)
 best_score = -1.0
-patience, bad_epochs = 100, 0
+patience, bad_epochs = 5, 0
 grad_clip_norm = 2.0
 accum_steps = 1
+log_grad_steps = 1
 
 for epoch in range(total_epochs):
     # ---- train
@@ -120,8 +121,21 @@ for epoch in range(total_epochs):
             if grad_clip_norm is not None:
                 scaler.unscale_(optimizer)
                 nn.utils.clip_grad_norm_(model.parameters(), grad_clip_norm)
+
+            # Log gradients every N steps, AFTER unscaling and BEFORE optimizer step
+            if (curr_step + 1) % log_grad_steps == 0:
+                for name, param in model.named_parameters():
+                    if param.grad is not None:
+                        writer.add_histogram(f'Gradients/{name}', param.grad, epoch * len(train_subset_loader) + curr_step)
+
             scaler.step(optimizer)
             scaler.update()
+            
+            # Log weights every N steps, AFTER the optimizer step
+            if (curr_step + 1) % log_grad_steps == 0:
+                for name, param in model.named_parameters():
+                    writer.add_histogram(f'Weights/{name}', param, epoch * len(train_subset_loader) + curr_step)
+
             optimizer.zero_grad(set_to_none=True)
 
         train_loss_meter.update(curr_loss.item() * accum_steps, k=curr_vols.size(0))
