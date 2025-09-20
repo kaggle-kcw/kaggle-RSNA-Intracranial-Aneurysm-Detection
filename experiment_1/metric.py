@@ -17,38 +17,33 @@ from typing import Callable, Optional, Tuple, Sequence, Dict, Any
 from sklearn.metrics import roc_auc_score
 from tqdm.auto import tqdm
 from sklearn.model_selection import StratifiedKFold
-@torch.no_grad()
-def auc_per_label(y_true, y_prob):
-    """Return list[float or np.nan] of AUROC per label; handles all-0/1 columns."""
+
+def get_auc_per_location_list(y_true, y_prob):
     y_true = y_true.astype(np.float32)
     y_prob = y_prob.astype(np.float32)
     L = y_true.shape[1]
-    aucs = []
+    auc_per_location_list = []
     for i in range(L):
-        col = y_true[:, i]
-        if np.unique(col).size < 2:
-            aucs.append(np.nan)   # undefined; will be ignored in means
-            continue
-        aucs.append(roc_auc_score(col, y_prob[:, i]))
-    return aucs
+        curr_y_true_by_location = y_true[:, i]
+        curr_y_prob_by_location = y_prob[:, i]
+        
+        auc_per_location_list.append(roc_auc_score(curr_y_true_by_location, curr_y_prob_by_location))
+    return auc_per_location_list
 
-def rsna_final_score(aucs, ap_index=0, other_indices=None):
-    """
-    Implements the RSNA 'Final Score' = 0.5 * (AUC_AP + mean(other AUCs)).
-    - aucs: list of floats (per label)
-    - ap_index: index for 'Aneurysm Present'
-    - other_indices: which labels to average besides AP (defaults to all except AP)
-    NaNs are ignored when averaging.
-    """
-    aucs = np.array(aucs, dtype=np.float32)
-    ap = aucs[ap_index]
-    if other_indices is None:
-        other_indices = [i for i in range(len(aucs)) if i != ap_index]
-    others = aucs[other_indices]
-    others = others[~np.isnan(others)]
-    if len(others) == 0 or np.isnan(ap):
-        return np.nan
-    return 0.5 * (float(ap) + float(others.mean()))
+def get_final_score(y_true, y_prob, auc_per_location_list):
+
+    average_location_roc_auc_score = 0
+    for i in range(len(auc_per_location_list)):
+        average_location_roc_auc_score += auc_per_location_list[i]
+    average_location_roc_auc_score /= len(auc_per_location_list)
+
+    true_aneurysm_present_list = (np.any(y_true == 1, axis=1)).astype(int)
+    prob_aneurysm_present_list = (np.any(y_prob > 0.5, axis=1)).astype(int)
+    aneurysm_present_roc_auc_score = roc_auc_score(true_aneurysm_present_list, prob_aneurysm_present_list)
+    
+    final_score = 0.5 * (average_location_roc_auc_score + aneurysm_present_roc_auc_score)
+
+    return final_score
 
 class AverageMeter:
     def __init__(self): 

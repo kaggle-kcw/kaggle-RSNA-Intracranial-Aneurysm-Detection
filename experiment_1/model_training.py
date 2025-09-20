@@ -11,7 +11,7 @@ from sklearn.model_selection import StratifiedKFold
 from data_preprocess import process_dicom_series_safe
 from dataset import RSNAAneurysmDataset, collate
 from model import EffnetAneurysmClassifier
-from metric import AverageMeter, auc_per_label, rsna_final_score
+from metric import AverageMeter, get_auc_per_location_list, get_final_score
 from utils import set_seed, LABEL_COLS, find_unused_series_instance_uid_list
 
 location_list = LABEL_COLS[:-1]  # All except 'Aneurysm Present'
@@ -54,7 +54,8 @@ train_ds = RSNAAneurysmDataset(
 NUM_LABELS = len(location_list)
 print(f"Number of curr_labels: {NUM_LABELS}")
 
-y_for_split = train_df[location_list[0]].values
+y_for_split_column = 'Aneurysm Present'
+y_for_split = train_df[y_for_split_column].values
 skf = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
 train_ds_idx, val_ds_idx = next(iter(skf.split(train_df, y_for_split)))
 
@@ -124,7 +125,7 @@ for epoch in range(total_epochs):
             optimizer.zero_grad(set_to_none=True)
 
         train_loss_meter.update(curr_loss.item() * accum_steps, k=curr_vols.size(0))
-        train_pbar.set_postfix(curr_loss=f"{train_loss_meter.avg:.4f}", lr=f"{optimizer.param_groups[0]['lr']:.2e}")
+        train_pbar.set_postfix(train_loss=f"{train_loss_meter.avg:.4f}", lr=f"{optimizer.param_groups[0]['lr']:.2e}")
 
     scheduler.step()
 
@@ -151,23 +152,21 @@ for epoch in range(total_epochs):
     y_prob = np.concatenate(all_probs, axis=0)
     y_true = np.concatenate(all_trues, axis=0)
 
-    per_label_auc = auc_per_label(y_true, y_prob)
-    final_score = rsna_final_score(per_label_auc, ap_index=0)
+    auc_per_location_list = get_auc_per_location_list(y_true, y_prob)
+    final_score = get_final_score(y_true, y_prob, auc_per_location_list)
 
     # Log validation metrics to TensorBoard
     writer.add_scalar('Loss/validation', val_loss_meter.avg, epoch)
-    writer.add_scalar('Score/final_score', final_score if not np.isnan(final_score) else 0, epoch)
-    for i, auc in enumerate(per_label_auc):
-        if not np.isnan(auc):
-            writer.add_scalar(f'AUC/{location_list[i]}', auc, epoch)
-    # logging
-    readable_aucs = [None if np.isnan(x) else round(float(x), 4) for x in per_label_auc]
+    writer.add_scalar('Score/final_score', final_score, epoch)
+    for i, auc in enumerate(auc_per_location_list):
+        writer.add_scalar(f'AUC/{location_list[i]}', auc, epoch)
+
     print(f"\nEpoch {epoch+1}: train_loss={train_loss_meter.avg:.4f}  "
-            f"val_loss_meter={val_loss_meter.avg:.4f}  final_score={None if np.isnan(final_score) else round(final_score,4)}")
-    print("Per-label AUROC:", {location_list[i]: readable_aucs[i] for i in range(len(readable_aucs))})
+            f"val_loss_meter={val_loss_meter.avg:.4f}  final_score={final_score:.4f}")
+    print("Per-label AUROC:", {location_list[i]: auc_per_location_list[i] for i in range(len(auc_per_location_list))})
 
     # checkpointing / early stop
-    score_for_ckpt = -1 if np.isnan(final_score) else final_score
+    score_for_ckpt = final_score
     if score_for_ckpt > best_score:
         best_score = score_for_ckpt
         bad_epochs = 0
